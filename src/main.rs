@@ -1,6 +1,9 @@
+#![recursion_limit="128"]
+
 extern crate piston_window;
 use piston_window::*;
 
+#[derive(Default, Clone, Copy, Debug)]
 struct Color<T> {
 	r: T,
 	g: T,
@@ -43,8 +46,8 @@ impl Default for Direction {
 #[derive(Clone, Copy, Debug)]
 enum DeclaredSize {
 	Auto,
-	Pixels(f32),
-	Percent(f32)
+	Pixels(f64),
+	Percent(f64)
 }
 
 impl Default for DeclaredSize {
@@ -60,7 +63,7 @@ trait Widget : ::std::fmt::Debug {
 	fn get_direction(&self) -> Direction {
 		Direction::Horizontal
 	}
-	fn get_declared_size(&self) -> DeclaredSize {
+	fn get_declared_width(&self) -> DeclaredSize {
 		DeclaredSize::Auto
 	}
 }
@@ -82,24 +85,26 @@ struct Button {
 	height: DeclaredSize
 }
 
-impl Widget for Button {}
+impl Widget for Button {
+	fn get_declared_width(&self) -> DeclaredSize {
+		self.width
+	}
+}
 
 #[derive(Default, Clone, Copy, Debug)]
 struct Text {
 
 }
 
-
-fn flex<T: Widget>(widget: &T) -> Rect<f64> {
-
-
-	Rect::new(50.0, 100.0, 100.0, 100.0)
+fn draw_rect(rect: &mut Rect<f64>, color: Color<f32>, c: piston_window::Context, g: &mut G2d) {
+	rectangle([color.r, color.g, color.b, color.a], [rect.left, rect.top, rect.width, rect.height], c.transform, g);
 }
 
-macro_rules! draw_rect {
-	($rect:expr, $color:expr, $c:expr, $g:expr) => {{
-		rectangle([$color.r, $color.g, $color.b, $color.a], [$rect.left, $rect.top, $rect.width, $rect.height], $c.transform, $g);
-	}}
+fn render(elem: &mut Element, c: piston_window::Context, g: &mut G2d) {
+	draw_rect(&mut elem.computed_style.border_box, elem.color, c, g);
+	for mut child in &mut elem.children {
+		render(child, c, g);
+	}
 }
 
 #[derive(Debug, Default)]
@@ -115,7 +120,8 @@ struct Element {
 	computed_style: ComputedStyle,
 	id: u64,
 	context: *mut Context,
-	parent: *mut Element
+	parent: *mut Element,
+	color: Color<f32>
 }
 
 impl Element {
@@ -133,22 +139,46 @@ impl Element {
 	}
 
 	fn reflow(&mut self) {
-		let declared_size = self.widget.get_declared_size();
-		let line_width = match declared_size {
+		let declared_width = self.widget.get_declared_width();
+		let line_width = match declared_width {
 			DeclaredSize::Auto => {
-				let nullptr = 0 as *mut Element;
 				unsafe {
 					match self.parent {
-						nullptr => { (*self.context).width },
+						_ if self.parent.is_null() => { (*self.context).width },
 						_ => { (*self.parent).computed_style.content_box.width }
 					}
 				}
 			},
+			DeclaredSize::Pixels(p) => {
+				unsafe {
+					if self.parent.is_null() {
+						p
+					} else {
+						self.computed_style.border_box.width
+					}
+				}
+			}
 			_ => { panic!() }
 		};
 
 		println!("{:?}", line_width);
-		self.computed_style.border_box = Rect::new(50.0, 100.0, 100.0, 100.0);
+		self.computed_style.border_box.width = line_width;
+		self.computed_style.border_box.height = 100.0;
+		
+		let mut current_offset = 0.0;
+		for child in &mut self.children {
+			// Le algorithm
+			let width = match child.widget.get_declared_width(){
+				DeclaredSize::Pixels(p) => p,
+				_ => panic!()
+			};
+			child.computed_style.border_box.width = width;
+			child.computed_style.border_box.left = current_offset;
+			
+			current_offset += width;
+			
+			child.reflow();
+		}
 	}
 }
 
@@ -167,7 +197,8 @@ impl Context {
 			id: self.counter,
 			children: Vec::new(),
 			computed_style: ComputedStyle::default(),
-			parent: 0 as *mut Element
+			parent: 0 as *mut Element,
+			color: Color::new(1.0, 0.0, 0.0, 1.0)
 		}
 	}
 }
@@ -178,12 +209,14 @@ fn main() {
 
 	let mut container = Container::default();
 	let mut container = context.create_element(container);
-
+	container.color = Color::new(0.0, 1.0, 0.0, 1.0);
+	
 	container.add_child(context.create_element(Button {
 		width: DeclaredSize::Pixels(128.0),
 		height: DeclaredSize::Pixels(48.0)
 	})).unwrap();
-
+	container.children[0].color = Color::new(0.0, 0.0, 1.0, 1.0);
+	
 	container.add_child(context.create_element(Button {
 		width: DeclaredSize::Pixels(128.0),
 		height: DeclaredSize::Pixels(48.0)
@@ -206,10 +239,10 @@ fn main() {
 
 	window.set_lazy(true);
 	while let Some(e) = window.next() {
-		window.draw_2d(&e, |c, g| {
+		window.draw_2d(&e, |c, mut g| {
 
 			clear([0.0, 0.0, 0.0, 1.0], g);
-			draw_rect!(container.computed_style.border_box, Color::<f32>::new(1.0, 0.0, 0.0, 1.0), c, g);
+			render(&mut container, c, &mut g);
 		});
 	}
 }
