@@ -1,10 +1,11 @@
-#![recursion_limit="128"]
-
 extern crate piston_window;
 use piston_window::*;
 
+mod element;
+use element::{Element, ComputedStyle};
+
 #[derive(Default, Clone, Copy, Debug)]
-struct Color<T> {
+pub struct Color<T> {
 	r: T,
 	g: T,
 	b: T,
@@ -18,7 +19,7 @@ impl<T> Color<T> {
 }
 
 #[derive(Default, Clone, Copy, Debug)]
-struct Rect<T> {
+pub struct Rect<T> {
 	left: T,
 	top: T,
 	width: T,
@@ -32,7 +33,15 @@ impl<T> Rect<T> {
 }
 
 #[derive(Clone, Copy, Debug)]
-enum Direction {
+pub enum Side {
+	Top,
+	Right,
+	Bottom,
+	Left
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum Direction {
 	Horizontal,
 	Vertical
 }
@@ -44,7 +53,7 @@ impl Default for Direction {
 }
 
 #[derive(Clone, Copy, Debug)]
-enum DeclaredSize {
+pub enum DeclaredSize {
 	Auto,
 	Pixels(f64),
 	Percent(f64)
@@ -56,7 +65,16 @@ impl Default for DeclaredSize {
 	}
 }
 
-trait Widget : ::std::fmt::Debug {
+impl DeclaredSize {
+	fn unwrap_as_pixels(&self) -> f64 {
+		match *self {
+			DeclaredSize::Pixels(p) => p,
+			_ => panic!()
+		}
+	}
+}
+
+pub trait Widget : ::std::fmt::Debug {
 	fn is_container(&self) -> bool {
 		false
 	}
@@ -65,6 +83,9 @@ trait Widget : ::std::fmt::Debug {
 	}
 	fn get_declared_width(&self) -> DeclaredSize {
 		DeclaredSize::Auto
+	}
+	fn get_padding(&self, side: Side) -> DeclaredSize {
+		DeclaredSize::Pixels(8.0)
 	}
 }
 
@@ -101,89 +122,17 @@ fn draw_rect(rect: &mut Rect<f64>, color: Color<f32>, c: piston_window::Context,
 }
 
 fn render(elem: &mut Element, c: piston_window::Context, g: &mut G2d) {
-	draw_rect(&mut elem.computed_style.border_box, elem.color, c, g);
+	draw_rect(&mut elem.computed_style.border_box, elem.padding_color, c, g);
+	draw_rect(&mut elem.computed_style.content_box, elem.color, c, g);
 	for mut child in &mut elem.children {
 		render(child, c, g);
 	}
 }
 
-#[derive(Debug, Default)]
-struct ComputedStyle {
-	border_box: Rect<f64>,
-	content_box: Rect<f64>
-}
 
-#[derive(Debug)]
-struct Element {
-	widget: Box<Widget>,
-	children: Vec<Element>,
-	computed_style: ComputedStyle,
-	id: u64,
-	context: *mut Context,
-	parent: *mut Element,
-	color: Color<f32>
-}
-
-impl Element {
-	/*
-	Adds a child to the element.
-
-	Errors if the underlying widget is not a container.
-	*/
-	fn add_child(&mut self, mut element: Element) -> Result<(), ()> {
-		if !self.widget.is_container() { return Err(()) };
-
-		element.parent = self as *mut Element;
-		self.children.push(element);
-		return Ok(());
-	}
-
-	fn reflow(&mut self) {
-		let declared_width = self.widget.get_declared_width();
-		let line_width = match declared_width {
-			DeclaredSize::Auto => {
-				unsafe {
-					match self.parent {
-						_ if self.parent.is_null() => { (*self.context).width },
-						_ => { (*self.parent).computed_style.content_box.width }
-					}
-				}
-			},
-			DeclaredSize::Pixels(p) => {
-				unsafe {
-					if self.parent.is_null() {
-						p
-					} else {
-						self.computed_style.border_box.width
-					}
-				}
-			}
-			_ => { panic!() }
-		};
-
-		println!("{:?}", line_width);
-		self.computed_style.border_box.width = line_width;
-		self.computed_style.border_box.height = 100.0;
-		
-		let mut current_offset = 0.0;
-		for child in &mut self.children {
-			// Le algorithm
-			let width = match child.widget.get_declared_width(){
-				DeclaredSize::Pixels(p) => p,
-				_ => panic!()
-			};
-			child.computed_style.border_box.width = width;
-			child.computed_style.border_box.left = current_offset;
-			
-			current_offset += width;
-			
-			child.reflow();
-		}
-	}
-}
 
 #[derive(Debug, Default)]
-struct Context {
+pub struct Context {
 	counter: u64,
 	width: f64
 }
@@ -198,7 +147,8 @@ impl Context {
 			children: Vec::new(),
 			computed_style: ComputedStyle::default(),
 			parent: 0 as *mut Element,
-			color: Color::new(1.0, 0.0, 0.0, 1.0)
+			color: Color::new(1.0, 0.0, 0.0, 1.0),
+			padding_color: Color::new(1.0, 0.0, 0.0, 1.0)
 		}
 	}
 }
@@ -210,18 +160,20 @@ fn main() {
 	let mut container = Container::default();
 	let mut container = context.create_element(container);
 	container.color = Color::new(0.0, 1.0, 0.0, 1.0);
+	container.padding_color = Color::new(0.0, 0.6, 0.0, 1.0);
 	
 	container.add_child(context.create_element(Button {
 		width: DeclaredSize::Pixels(128.0),
 		height: DeclaredSize::Pixels(48.0)
 	})).unwrap();
 	container.children[0].color = Color::new(0.0, 0.0, 1.0, 1.0);
+	container.children[0].padding_color = Color::new(0.0, 0.0, 0.6, 1.0);
 	
 	container.add_child(context.create_element(Button {
 		width: DeclaredSize::Pixels(128.0),
 		height: DeclaredSize::Pixels(48.0)
 	})).unwrap();
-
+	container.children[1].padding_color = Color::new(0.6, 0.0, 0.0, 1.0);
 
 	container.reflow();
 	println!("{:?}", container);
