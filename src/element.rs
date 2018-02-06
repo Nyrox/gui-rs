@@ -20,6 +20,20 @@ pub struct Element {
 }
 
 impl Element {
+	pub fn new<W: 'static + Widget>(context: &mut Context, w: W) -> Element {
+		
+		Element {
+			widget: Box::new(w),
+			computed_style: ComputedStyle::default(),
+			children: Vec::new(),
+			id: context.generate_element_id(),
+			context: context as *mut Context,
+			parent: ::std::ptr::null_mut(),
+			color: Color::default(),
+			padding_color: Color::default()
+		}
+	}
+	
 	/*
 	Adds a child to the element.
 
@@ -55,7 +69,8 @@ impl Element {
 			}
 			_ => { panic!() }
 		};
-
+		
+		println!("{:?}", unsafe { (*self.context).width });
 		println!("{:?}", line_width);
 		self.computed_style.border_box.width = line_width;
 		self.computed_style.border_box.height = 100.0;

@@ -131,13 +131,28 @@ fn render(elem: &mut Element, c: piston_window::Context, g: &mut G2d) {
 
 
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Context {
 	counter: u64,
-	width: f64
+	width: f64,
+	height: f64,
+	root: Element
 }
 
 impl Context {
+	fn new(width: f64, height: f64) -> Context {
+		Context { counter: 0, width, height, root: Element {
+			context: 0 as *mut Context,
+			widget: Box::new(Container::default()),
+			id: 0,
+			children: Vec::new(),
+			computed_style: ComputedStyle::default(),
+			parent: 0 as *mut Element,
+			color: Color::new(1.0, 0.0, 0.0, 1.0),
+			padding_color: Color::new(1.0, 0.0, 0.0, 1.0)
+		}}
+	}
+	
 	fn create_element<W: Widget + 'static>(&mut self, widget: W) -> Element {
 		self.counter += 1;
 		Element {
@@ -151,32 +166,38 @@ impl Context {
 			padding_color: Color::new(1.0, 0.0, 0.0, 1.0)
 		}
 	}
+	
+	fn generate_element_id(&mut self) -> u64 {
+		self.counter += 1;
+		return self.counter;
+	}
 }
 
 fn main() {
-	let mut context = Context::default();
-	context.width = 1280.0;
-
-	let mut container = Container::default();
-	let mut container = context.create_element(container);
-	container.color = Color::new(0.0, 1.0, 0.0, 1.0);
-	container.padding_color = Color::new(0.0, 0.6, 0.0, 1.0);
+	let mut context = Context::new(1280.0, 720.0);
+	context.root.context = &mut context as *mut _;
+	context.root.color = Color::new(0.1, 0.1, 0.1, 1.0);
+	context.root.padding_color = Color::new(0.05, 0.05, 0.05, 1.0);
 	
-	container.add_child(context.create_element(Button {
+	let button = Element::new(&mut context, Button {
 		width: DeclaredSize::Pixels(128.0),
 		height: DeclaredSize::Pixels(48.0)
-	})).unwrap();
-	container.children[0].color = Color::new(0.0, 0.0, 1.0, 1.0);
-	container.children[0].padding_color = Color::new(0.0, 0.0, 0.6, 1.0);
+	});
 	
-	container.add_child(context.create_element(Button {
+	context.root.add_child(button).unwrap();
+	context.root.children[0].color = Color::new(0.0, 0.0, 1.0, 1.0);
+	context.root.children[0].padding_color = Color::new(0.0, 0.0, 0.6, 1.0);
+	
+	let button = Element::new(&mut context, Button {
 		width: DeclaredSize::Pixels(128.0),
 		height: DeclaredSize::Pixels(48.0)
-	})).unwrap();
-	container.children[1].padding_color = Color::new(0.6, 0.0, 0.0, 1.0);
+	});
+	context.root.add_child(button).unwrap();
+	context.root.children[1].color = Color::new(1.0, 0.0, 0.0, 1.0);
+	context.root.children[1].padding_color = Color::new(0.6, 0.0, 0.0, 1.0);
 
-	container.reflow();
-	println!("{:?}", container);
+	context.root.reflow();
+	println!("{:?}", unsafe { (*context.root.context).width });
 
 	let mut window: PistonWindow = WindowSettings::new(
 		"piston: hello_world",
@@ -194,7 +215,7 @@ fn main() {
 		window.draw_2d(&e, |c, mut g| {
 
 			clear([0.0, 0.0, 0.0, 1.0], g);
-			render(&mut container, c, &mut g);
+			render(&mut context.root, c, &mut g);
 		});
 	}
 }
