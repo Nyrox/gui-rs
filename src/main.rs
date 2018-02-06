@@ -4,6 +4,9 @@ use piston_window::*;
 mod element;
 use element::{Element, ComputedStyle};
 
+mod style;
+use style::*;
+
 #[derive(Default, Clone, Copy, Debug)]
 pub struct Color<T> {
 	r: T,
@@ -69,6 +72,7 @@ impl DeclaredSize {
 	fn unwrap_as_pixels(&self) -> f64 {
 		match *self {
 			DeclaredSize::Pixels(p) => p,
+			DeclaredSize::Auto => 16.0,
 			_ => panic!()
 		}
 	}
@@ -122,8 +126,8 @@ fn draw_rect(rect: &mut Rect<f64>, color: Color<f32>, c: piston_window::Context,
 }
 
 fn render(elem: &mut Element, c: piston_window::Context, g: &mut G2d) {
-	draw_rect(&mut elem.computed_style.border_box, elem.padding_color, c, g);
-	draw_rect(&mut elem.computed_style.content_box, elem.color, c, g);
+	draw_rect(&mut elem.computed_style.border_box, elem.style.padding_color, c, g);
+	draw_rect(&mut elem.computed_style.content_box, elem.style.background_color, c, g);
 	for mut child in &mut elem.children {
 		render(child, c, g);
 	}
@@ -143,28 +147,12 @@ impl Context {
 	fn new(width: f64, height: f64) -> Context {
 		Context { counter: 0, width, height, root: Element {
 			context: 0 as *mut Context,
-			widget: Box::new(Container::default()),
 			id: 0,
 			children: Vec::new(),
 			computed_style: ComputedStyle::default(),
 			parent: 0 as *mut Element,
-			color: Color::new(1.0, 0.0, 0.0, 1.0),
-			padding_color: Color::new(1.0, 0.0, 0.0, 1.0)
+			style: DeclaredStyle::default()
 		}}
-	}
-	
-	fn create_element<W: Widget + 'static>(&mut self, widget: W) -> Element {
-		self.counter += 1;
-		Element {
-			context: self as *mut Context,
-			widget: Box::new(widget),
-			id: self.counter,
-			children: Vec::new(),
-			computed_style: ComputedStyle::default(),
-			parent: 0 as *mut Element,
-			color: Color::new(1.0, 0.0, 0.0, 1.0),
-			padding_color: Color::new(1.0, 0.0, 0.0, 1.0)
-		}
 	}
 	
 	fn generate_element_id(&mut self) -> u64 {
@@ -176,25 +164,28 @@ impl Context {
 fn main() {
 	let mut context = Context::new(1280.0, 720.0);
 	context.root.context = &mut context as *mut _;
-	context.root.color = Color::new(0.1, 0.1, 0.1, 1.0);
-	context.root.padding_color = Color::new(0.05, 0.05, 0.05, 1.0);
+	context.root.style.background_color = Color::new(0.1, 0.1, 0.1, 1.0);
+	context.root.style.padding_color = Color::new(0.05, 0.05, 0.05, 1.0);
 	
-	let button = Element::new(&mut context, Button {
+	let mut button = Element::new(&mut context, DeclaredStyle {
 		width: DeclaredSize::Pixels(128.0),
-		height: DeclaredSize::Pixels(48.0)
+		height: DeclaredSize::Pixels(96.0),
+		background_color: Color::new(9.0, 0.0, 1.0, 1.0),
+		padding_color: Color::new(0.0, 0.0, 0.6, 1.0),
+		..DeclaredStyle::default()
 	});
 	
 	context.root.add_child(button).unwrap();
-	context.root.children[0].color = Color::new(0.0, 0.0, 1.0, 1.0);
-	context.root.children[0].padding_color = Color::new(0.0, 0.0, 0.6, 1.0);
 	
-	let button = Element::new(&mut context, Button {
+
+	let mut button = Element::new(&mut context, DeclaredStyle {
 		width: DeclaredSize::Pixels(128.0),
-		height: DeclaredSize::Pixels(48.0)
+		height: DeclaredSize::Pixels(96.0),
+		background_color: Color::new(1.0, 0.0, 0.0, 1.0),
+		padding_color: Color::new(0.6, 0.0, 0.0, 1.0),
+		..DeclaredStyle::default()
 	});
 	context.root.add_child(button).unwrap();
-	context.root.children[1].color = Color::new(1.0, 0.0, 0.0, 1.0);
-	context.root.children[1].padding_color = Color::new(0.6, 0.0, 0.0, 1.0);
 
 	context.root.reflow();
 	println!("{:?}", unsafe { (*context.root.context).width });
