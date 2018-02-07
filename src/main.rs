@@ -11,20 +11,6 @@ mod util;
 use util::UnsafePtr;
 
 #[derive(Default, Clone, Copy, Debug)]
-pub struct Color<T> {
-	r: T,
-	g: T,
-	b: T,
-	a: T
-}
-
-impl<T> Color<T> {
-	pub fn new(r: T, g: T, b: T, a: T) -> Color<T> {
-		Color { r, g, b, a }
-	}
-}
-
-#[derive(Default, Clone, Copy, Debug)]
 pub struct Rect<T> {
 	left: T,
 	top: T,
@@ -58,73 +44,7 @@ impl Default for Direction {
 	}
 }
 
-#[derive(Clone, Copy, Debug)]
-pub enum DeclaredSize {
-	Auto,
-	Pixels(f64),
-	Percent(f64)
-}
-
-impl Default for DeclaredSize {
-	fn default() -> DeclaredSize {
-		DeclaredSize::Auto
-	}
-}
-
-impl DeclaredSize {
-	fn unwrap_as_pixels(&self) -> f64 {
-		match *self {
-			DeclaredSize::Pixels(p) => p,
-			DeclaredSize::Auto => 16.0,
-			_ => panic!()
-		}
-	}
-}
-
-pub trait Widget : ::std::fmt::Debug {
-	fn is_container(&self) -> bool {
-		false
-	}
-	fn get_direction(&self) -> Direction {
-		Direction::Horizontal
-	}
-	fn get_declared_width(&self) -> DeclaredSize {
-		DeclaredSize::Auto
-	}
-	fn get_padding(&self, side: Side) -> DeclaredSize {
-		DeclaredSize::Pixels(8.0)
-	}
-}
-
-#[derive(Default, Debug)]
-struct Container {
-
-}
-
-impl Widget for Container {
-	fn is_container(&self) -> bool {
-		true
-	}
-}
-
-#[derive(Default, Clone, Copy, Debug)]
-struct Button {
-	width: DeclaredSize,
-	height: DeclaredSize
-}
-
-impl Widget for Button {
-	fn get_declared_width(&self) -> DeclaredSize {
-		self.width
-	}
-}
-
-#[derive(Default, Clone, Copy, Debug)]
-struct Text {
-
-}
-
-fn draw_rect(rect: &mut Rect<f64>, color: Color<f32>, c: piston_window::Context, g: &mut G2d) {
+fn draw_rect(rect: &mut Rect<f64>, color: Color, c: piston_window::Context, g: &mut G2d) {
 	rectangle([color.r, color.g, color.b, color.a], [rect.left, rect.top, rect.width, rect.height], c.transform, g);
 }
 
@@ -135,8 +55,6 @@ fn render(elem: &mut Element, c: piston_window::Context, g: &mut G2d) {
 		render(child, c, g);
 	}
 }
-
-
 
 #[derive(Debug)]
 pub struct Context {

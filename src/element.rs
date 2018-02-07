@@ -1,4 +1,4 @@
-use {Context, Color, Rect, Side, DeclaredSize, Widget};
+use {Context, Rect};
 use style::*;
 
 use util::UnsafePtr;
