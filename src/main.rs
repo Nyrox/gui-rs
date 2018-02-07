@@ -7,6 +7,9 @@ use element::{Element, ComputedStyle};
 mod style;
 use style::*;
 
+mod util;
+use util::UnsafePtr;
+
 #[derive(Default, Clone, Copy, Debug)]
 pub struct Color<T> {
 	r: T,
@@ -146,11 +149,11 @@ pub struct Context {
 impl Context {
 	fn new(width: f64, height: f64) -> Context {
 		Context { counter: 0, width, height, root: Element {
-			context: 0 as *mut Context,
+			context: UnsafePtr::null(),
 			id: 0,
 			children: Vec::new(),
 			computed_style: ComputedStyle::default(),
-			parent: 0 as *mut Element,
+			parent: UnsafePtr::null(),
 			style: DeclaredStyle::default()
 		}}
 	}
@@ -163,22 +166,21 @@ impl Context {
 
 fn main() {
 	let mut context = Context::new(1280.0, 720.0);
-	context.root.context = &mut context as *mut _;
+	context.root.context = UnsafePtr::from(&mut context);
 	context.root.style.background_color = Color::new(0.1, 0.1, 0.1, 1.0);
 	context.root.style.padding_color = Color::new(0.05, 0.05, 0.05, 1.0);
 	
-	let mut button = Element::new(&mut context, DeclaredStyle {
+	let button = Element::new(&mut context, DeclaredStyle {
 		width: DeclaredSize::Pixels(128.0),
 		height: DeclaredSize::Pixels(96.0),
 		background_color: Color::new(9.0, 0.0, 1.0, 1.0),
 		padding_color: Color::new(0.0, 0.0, 0.6, 1.0),
 		..DeclaredStyle::default()
-	});
-	
+	});	
 	context.root.add_child(button).unwrap();
 	
 
-	let mut button = Element::new(&mut context, DeclaredStyle {
+	let button = Element::new(&mut context, DeclaredStyle {
 		width: DeclaredSize::Pixels(128.0),
 		height: DeclaredSize::Pixels(96.0),
 		background_color: Color::new(1.0, 0.0, 0.0, 1.0),
@@ -188,7 +190,7 @@ fn main() {
 	context.root.add_child(button).unwrap();
 
 	context.root.reflow();
-	println!("{:?}", unsafe { (*context.root.context).width });
+	println!("{:?}", (*context.root.context).width);
 
 	let mut window: PistonWindow = WindowSettings::new(
 		"piston: hello_world",
